@@ -1,0 +1,415 @@
+---
+title: "Mapping Occupation and Race in Boston During COVID-19"
+author: "Lauren Chambers"
+date: "5/1/2020"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Getting Started
+```{r, results="hide", message=FALSE, warning=FALSE}
+# Import needed libraries
+library(tidyverse)
+library(leaflet)
+library(tidycensus)
+library(rgdal)
+library(mapview)
+library(readxl)
+
+# Set ggplot theme
+theme_set(theme_minimal())
+```
+
+
+## Examine ACS tables
+Explore the variables available in the census data
+```{r}
+# Get all ACS 2018 subject tables & columns names
+all_acs18_subj_tabs <- tidycensus::load_variables(2018, "acs5/subject", cache = TRUE)
+View(all_acs18_subj_tabs)
+
+# Get all ACS 2018 tables & columns names
+all_acs18_tabs <- tidycensus::load_variables(2018, "acs5", cache = TRUE)
+View(all_acs18_tabs)
+```
+
+## Define helper functions for plotting
+Do math to figure out percentage of estimate variables
+```{r}
+get_percents <- function(df, save=F) {
+  
+  # Get the input data frame's name as a string
+  original_df_name <- deparse(substitute(df))
+  
+  # Sum together the various "estimate" values and calculate percent of the whole
+  df <- df %>%
+    group_by(GEOID) %>%
+    mutate(sum_value = sum(estimate),
+           sum_moe = sum(moe),
+           percent = sum_value / summary_est * 100) %>%
+    select(-estimate, -moe, -variable) %>%
+    unique() %>%
+    # Exclude census tracts with no land
+    filter(ALAND > 0)
+  
+  # If desired, save resulting dataframe & spatial data to file
+  if (save) {
+    writeOGR(obj=df, dsn=paste0("app/data/", original_df_name), 
+             layer=original_df_name, driver="ESRI Shapefile")
+  }
+  
+  return(df)
+}
+```
+
+Replace legend labels with custom format
+```{r}
+myLabelFormat = function(..., custom_percent=F, income=F){ 
+  # Add "≥" in front of last legend percentage to denote lower limit
+  if(custom_percent){ 
+    function(type = "numeric", cuts){ 
+      cuts <- paste0(cuts, "%")
+      cuts[[length(cuts)]] <- paste0("≥", cuts[[length(cuts)]])
+      cuts
+    } 
+    
+  # Add "≥" in front of last legend value to denote lower limit & add 
+  # commas for legibility in big numbers
+  } else if(income){ 
+    function(type = "numeric", cuts){ 
+      cuts <- paste0("$",format(cuts ,big.mark=",",scientific=FALSE))
+      cuts[[length(cuts)]] <- paste0("≥", cuts[[length(cuts)]])
+      cuts
+    } 
+  
+  # Use default label formatter  
+  } else{
+    labelFormat(...)
+  }
+}
+```
+
+# Get internet/computer access by census tract
+## Download data
+```{r}
+# Download ACS census data on internet/computer access:
+# - B28008_001: Total population in tract 
+# - B28008_009: Population in tract with computer but no internet
+# - B28008_010: Population in tract with no computer
+ma_intcomp_tract <- get_acs(geography = "tract",
+                            state="MA",
+                            variables = c("B28008_009", "B28008_010"),
+                            summary_var = "B28008_001", 
+                            keep_geo_vars = T,
+                            geometry=T)
+```
+
+## Define mapping data & parameters
+```{r}
+# Calculate percent of no computer + computer w/o internet
+to_plot <- get_percents(ma_intcomp_tract)
+
+# Save to shapefile
+writeOGR(obj=to_plot, dsn=paste0("app/data/", "intcomp_by_tract"), 
+             layer="intcomp_by_tract", driver="ESRI Shapefile")
+
+# Define percent values to plot
+domain_to_plot <- 0:30
+
+# Define color palette for partial range of percentages
+pal_intcomp <- colorNumeric(
+  palette = "viridis",
+  domain = domain_to_plot,
+  na.color = "#FDEF23" # yellow at end of viridis
+)
+```
+
+## Create map
+```{r}
+# Create interactive Leaflet map
+m <- leaflet() %>%
+  # Use gray background map
+  addProviderTiles(providers$Esri.WorldGrayCanvas) %>%
+  # Add census tracts colored by data
+  addPolygons(data = to_plot, 
+              fillColor = ~pal_intcomp(percent), # Fill color base on percentage
+              color = "none",
+              fillOpacity = 0.8, 
+              weight = 1, 
+              smoothFactor = 0.7,
+              group="poly") %>%
+  # Add legend
+  addLegend(pal = pal_intcomp, 
+            values = domain_to_plot,
+            position = "topright", 
+            title = "<a style='font-family:GT America; color: dimgrey'>
+                        Percent of <br>residents without<br>computer or internet<br>by census tract
+                    </a>",
+            labFormat = myLabelFormat(custom_percent=T)
+            )  %>%
+  # Add button to reset zoom
+  addEasyButton(easyButton(
+    icon="fa-home", title="Reset",
+    onClick=JS("function(btn, map){ 
+                   var groupLayer = map.layerManager.getLayerGroup('poly');
+                   map.fitBounds(groupLayer.getBounds());
+               }")))
+
+# Show map
+m
+```
+
+## Save map as PNG
+```{r}
+paste0(as.character(getwd()), "/figures/",
+       strftime(Sys.time(), "%Y%m%d_%H%M%S"),
+       "_tracts_30pct.png") %>%
+  mapshot(m, file = .,
+          vwidth=700, vheight=500, expand=2,
+          remove_controls = c("zoomControl", "homeButton"))
+```
+
+# Get broadband internet access by census tract
+## Download data
+```{r}
+# Download ACS census data on broadband access:
+# - B28008_001: Total population in tract 
+# - B28008_005: Population in tract with fixed broadband internet
+ma_broadband_tract <- get_acs(geography = "tract",
+                              state="MA",
+                              variables = "B28008_005",
+                              summary_var = "B28008_001", 
+                              keep_geo_vars = T,
+                              geometry=T)
+```
+
+## Define mapping data & parameters
+```{r}
+# Calculate percent of non-broadband households
+to_plot <- ma_broadband_tract %>%
+  select(-moe, -summary_moe) %>%
+  rename(total = summary_est,
+         broadband = estimate) %>%
+  # Calculate non-broadband
+  mutate(non_broadband = total - broadband) %>%
+  # Calculate percentage
+  mutate(percent = 100 * (non_broadband / total)) %>%
+  filter(!is.na(percent)) 
+
+# Save to shapefile
+writeOGR(obj=to_plot, dsn=paste0("app/data/", "broadband_by_tract"), 
+             layer="broadband_by_tract", driver="ESRI Shapefile")
+
+# Define percent values to plot
+domain_to_plot <- 0:30
+
+# Define color palette for partial range of percentages
+pal_broadband <- colorNumeric(
+  palette = "viridis",
+  domain = domain_to_plot,
+  na.color = "#FDEF23" # yellow at end of viridis
+)
+```
+
+## Create map
+```{r}
+# Create interactive Leaflet map
+m <- leaflet() %>%
+  # Use gray background map
+  addProviderTiles(providers$Esri.WorldGrayCanvas) %>%
+  # Add census tracts colored by data
+  addPolygons(data = to_plot, 
+              fillColor = ~pal_broadband(percent), # Fill color base on percentage
+              color = "none",
+              fillOpacity = 0.8, 
+              weight = 1, 
+              smoothFactor = 0.7,
+              group="poly") %>%
+  # Add legend
+  addLegend(pal = pal_broadband, 
+            values = domain_to_plot,
+            position = "topright", 
+            title = "<a style='font-family:GT America; color: dimgrey'>
+                        Percent of residents<br>without broadband<br>by census tract
+                    </a>",
+            labFormat = myLabelFormat(custom_percent=T)
+            )  %>%
+  # Add button to reset zoom
+  addEasyButton(easyButton(
+    icon="fa-home", title="Reset",
+    onClick=JS("function(btn, map){ 
+                   var groupLayer = map.layerManager.getLayerGroup('poly');
+                   map.fitBounds(groupLayer.getBounds());
+               }")))
+
+# Show map
+m
+```
+
+## Save map as PNG
+```{r}
+paste0(as.character(getwd()), "/figures/",
+       strftime(Sys.time(), "%Y%m%d_%H%M%S"),
+       "_broadband_tracts_30pct.png") %>%
+  mapshot(m, file = .,
+          vwidth=700, vheight=500, expand=2,
+          remove_controls = c("zoomControl", "homeButton"))
+```
+
+# Get income by census tract
+## Download data
+```{r}
+# Download ACS census data on income:
+# - S1902_C03_001: Mean household income
+ma_income_tract <- get_acs(geography = "tract",
+                            state="MA",
+                            variables = "S1902_C03_001",
+                            keep_geo_vars = T,
+                            geometry=T)
+```
+
+## Define mapping data & parameters
+```{r}
+# Prep data for mapping
+to_plot <- ma_income_tract %>%
+  rename(income = estimate) %>% 
+  filter(!is.na(income))
+
+# Save to shapefile
+writeOGR(obj=to_plot, dsn=paste0("app/data/", "income_by_tract"), 
+             layer="income_by_tract", driver="ESRI Shapefile")
+
+# Define income values to plot
+domain_to_plot <- 20000:140000
+
+# Define color palette for partial range of incomes
+pal_income <- colorNumeric(
+  palette = "viridis",
+  na.color = "#3D0C51", # Start of viridis scale
+  reverse=T, # Low income colors should match low internet colors
+  domain = domain_to_plot
+)
+```
+
+## Create map
+```{r}
+# Create interactive Leaflet map
+m <- leaflet() %>%
+  # Use gray background map
+  addProviderTiles(providers$Esri.WorldGrayCanvas) %>%
+  # Add census tracts colored by data
+  addPolygons(data = to_plot, 
+              fillColor = ~pal_income(income), # Fill color base on income
+              color = "none",
+              fillOpacity = 0.8, 
+              weight = 1, 
+              smoothFactor = 0.7,
+              group="poly") %>%
+  # Add legend
+  addLegend(pal = pal_income, 
+            values = domain_to_plot,
+            position = "topright", 
+            title = "<a style='font-family:GT America; color: dimgrey'>
+                        Mean household income<br>by census tract
+                    </a>",
+            labFormat = myLabelFormat(income=T)
+            )  %>%
+  # Add button to reset zoom
+  addEasyButton(easyButton(
+    icon="fa-home", title="Reset",
+    onClick=JS("function(btn, map){ 
+                   var groupLayer = map.layerManager.getLayerGroup('poly');
+                   map.fitBounds(groupLayer.getBounds());
+               }")))
+
+# Show map
+m
+```
+
+## Save map as PNG
+```{r}
+paste0(as.character(getwd()), "/figures/",
+       strftime(Sys.time(), "%Y%m%d_%H%M%S"),
+       "_income_tracts_150k.png") %>%
+  mapshot(m, file = .,
+          vwidth=700, vheight=500, expand=2,
+          remove_controls = c("zoomControl", "homeButton"))
+```
+
+# Get home language by tract
+## Download data
+```{r}
+# Download ACS census data on language:
+# - S1601_C02_003: Percent of tract speaking language other than English at home
+ma_lang_tract <- get_acs(geography = "tract",
+                            state="MA",
+                            variables = "S1601_C02_003",
+                            keep_geo_vars = T,
+                            geometry=T)
+```
+
+## Define mapping data & parameters
+```{r}
+# Prep data for mapping
+to_plot <- ma_lang_tract %>%
+  rename(percent = estimate) %>%
+  filter(!is.na(percent))
+
+# Save to shapefile
+writeOGR(obj=to_plot, dsn=paste0("app/data/", "lang_by_tract"), 
+             layer="lang_by_tract", driver="ESRI Shapefile")
+
+# Define percent values to plot
+domain_to_plot <- 0:70
+
+# Define color palette for partial range of percentages
+pal_lang <- colorNumeric(
+  palette = "viridis",
+  domain = domain_to_plot
+)
+```
+
+## Create map
+```{r}
+# Create interactive Leaflet map
+m <- leaflet() %>%
+  addProviderTiles(providers$Esri.WorldGrayCanvas) %>%
+  addPolygons(data = to_plot, 
+              fillColor = ~pal_lang(percent), # Fill color base on percentage
+              color = "none", 
+              fillOpacity = 0.8, 
+              weight = 1, 
+              smoothFactor = 0.7, 
+              group="poly") %>%
+  # Add legend
+  addLegend(pal = pal_lang, 
+            values = domain_to_plot,
+            position = "topright",
+            title = "<a style='font-family:GT America; color: dimgrey'>
+                        Percent of residents<br>speaking language other<br>than English at home,<br>by census tract
+                    </a>",
+            labFormat = myLabelFormat(custom_percent=T)
+            )  %>%
+  # Add button to reset zoom
+  addEasyButton(easyButton(
+    icon="fa-home", title="Reset",
+    onClick=JS("function(btn, map){ 
+                   var groupLayer = map.layerManager.getLayerGroup('poly');
+                   map.fitBounds(groupLayer.getBounds());
+               }")))
+
+# Show map
+m
+```
+
+## Save map as PNG
+```{r}
+paste0(as.character(getwd()), "/figures/",
+       strftime(Sys.time(), "%Y%m%d_%H%M%S"),
+       "_language_70pct_tracts.png") %>%
+  mapshot(m, file = .,
+          vwidth=700, vheight=500, expand=2,
+          remove_controls = c("zoomControl", "homeButton"))
+```
+

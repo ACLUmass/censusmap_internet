@@ -1,0 +1,69 @@
+/*- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Custom CSS for SJC 12926 COVID-19 Tracker Shiny App
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Thank you: https://shiny.rstudio.com/articles/css.html
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -*/
+
+/* Define GT America font */
+/* CSS modified from aclum.org: https://www.aclum.org/sites/default/files/css/css_EjcJzxzhvjcsFc2zO64tGCpzBzxgdDr78RRvkT__FRA.css */
+
+/* GT America Condensed Regular */
+@font-face {
+  font-family:'gtamcond';
+  src: url("fonts/gtamerica/GT-America-Condensed-Regular.woff2") format('woff2');
+  font-weight:400;
+}
+
+/* GT America Condensed Bold */
+@font-face {
+  font-family:'gtamcond';
+  src: url("fonts/gtamerica/GT-America-Condensed-Bold.woff2") format('woff2');
+  font-weight:600;
+}
+
+/* GT America Regular */
+@font-face {
+  font-family:'gtam';
+  src: url("fonts/gtamerica/GT-America-Standard-Regular.woff2") format('woff2');
+  font-weight:400;
+}
+
+/* GT America Bold */
+@font-face {
+  font-family:'gtam';
+  src: url("fonts/gtamerica/GT-America-Standard-Bold.woff2") format('woff2');
+  font-weight:600;
+}
+
+body {
+  font-family: 'gtam', sans-serif;
+}
+
+h2 {
+    font-weight: bold;
+}
+
+.tabbable {
+  max-width: 750px;
+}
+
+h1, h2, h3, h4 {
+  text-transform: uppercase;
+  font-weight: bold;
+  font-family: gtamcond;
+}
+
+#footer {
+  margin-top: 20px;
+}
+
+.logo-control img {
+  width: 100%;
+}
+
+.logo-control {
+  background-color: rgba(0, 0, 0, 0);
+  width: 40%;
+  border-radius: 0px;
+  box-shadow: none;
+}
