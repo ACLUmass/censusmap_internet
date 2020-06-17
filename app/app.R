@@ -1,3 +1,9 @@
+# R Shiny app to show internet maps
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Author: Lauren Chambers
+# Update Date: May 2020
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Import libraries
 library(dplyr)
 library(ggplot2)
 library(shiny)
@@ -8,6 +14,8 @@ library(showtext)
 library(leaflet)
 library(rgdal)
 
+# Initialization --------------------------------------------------------------
+
 # Set ggplot settings
 theme_set(theme_minimal())
 
@@ -16,21 +24,18 @@ font_add("gtam", "www/fonts/gtamerica/GT-America-Standard-Regular.ttf",
          bold = "www/fonts/gtamerica/GT-America-Standard-Bold.ttf")
 showtext_auto()
 
-# Load shapefiles
+# Load shapefiles created in mapping_internet.Rmd
 intcomp_spdf <- readOGR("data", "intcomp_by_tract")
 broadband_spdf <- readOGR("data", "broadband_by_tract")
 income_spdf <- readOGR("data", "income_by_tract")
 lang_spdf <- readOGR("data", "lang_by_tract")
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# UI
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# UI --------------------------------------------------------------------------
 ui <- fluidPage(theme = "covid19_internet.css",
                 
-                tags$head(
-                  tags$style(HTML("
+  # Add custom CSS for web page       
+  tags$head(
+    tags$style(HTML("
       
       body {
         width: 90%;
@@ -44,12 +49,14 @@ ui <- fluidPage(theme = "covid19_internet.css",
       }
 
     "))
-                ),
+  ),
                 
   titlePanel("Mapping Internet Access in Massachusetts"),
   
-  em("Read about the full analysis on the", a("Data for Justice blog.", href="http://data.aclum.org/2020/05/13/internet-deserts…-during-covid-19/")),
-      
+  em("Read about the full analysis on the", 
+     a("Data for Justice blog.", 
+       href="http://data.aclum.org/2020/05/13/internet-deserts…-during-covid-19/")),
+  
   # Add favicon          
   tags$head(
     tags$link(rel = "shortcut icon", href = "favicon.ico"),
@@ -57,53 +64,49 @@ ui <- fluidPage(theme = "covid19_internet.css",
   ),
   
   div(id="maps-caption",
-  tabsetPanel(type = "tabs",
-              tabPanel("Computer & Internet", 
-                       withSpinner(leafletOutput("intcomp_map"), type=4, 
-                                   color="#b5b5b5", size=0.5)),
-              tabPanel("Broadband", 
-                       withSpinner(leafletOutput("broadband_map"), type=4, 
-                                   color="#b5b5b5", size=0.5)),
-              tabPanel("Income", 
-                       withSpinner(leafletOutput("income_map"), type=4, 
-                                   color="#b5b5b5", size=0.5)),
-              tabPanel("Primary Language", 
-                       withSpinner(leafletOutput("lang_map"), type=4, 
-                                   color="#b5b5b5", size=0.5))
-              ),
-  
-  em("DATA SOURCE: U.S. Census Bureau, American Community Survey, 2018 5-yr estimates (2014-2018); Table",
-     textOutput("tab_num", inline=T)),
-  br(),
-  em("DATA ANALYSIS: ACLU of Massachusetts")
+      tabsetPanel(type = "tabs",
+                  tabPanel("Computer & Internet", 
+                           withSpinner(leafletOutput("intcomp_map"), type=4, 
+                                       color="#b5b5b5", size=0.5)),
+                  tabPanel("Broadband", 
+                           withSpinner(leafletOutput("broadband_map"), type=4, 
+                                       color="#b5b5b5", size=0.5)),
+                  tabPanel("Income", 
+                           withSpinner(leafletOutput("income_map"), type=4, 
+                                       color="#b5b5b5", size=0.5)),
+                  tabPanel("Primary Language", 
+                           withSpinner(leafletOutput("lang_map"), type=4, 
+                                       color="#b5b5b5", size=0.5))
+      ),
+      
+      em("DATA SOURCE: U.S. Census Bureau, American Community Survey, 2018 5-yr estimates (2014-2018); Table",
+         textOutput("tab_num", inline=T)),
+      br(),
+      em("DATA ANALYSIS: ACLU of Massachusetts")
   ),
   
   div(id="footer",
-    hr(),
-    div(align="center",
-      a(href="https://www.aclum.org/", target="_blank",
-        img(src="Logo_CMYK_Massachusetts_Massachusetts.png", height="50px", 
-            style="display: inline; margin: 10px;")),
-      a(href="https://www.data.aclum.org/",  target="_blank",
-        img(src="D4J-logo.png", height="50px", 
-            style="display: inline; margin: 10px;"))),
-    p("Please contact lchambers@aclum.org with questions.", align="center", style="opacity: 0.6;")
+      hr(),
+      div(align="center",
+          a(href="https://www.aclum.org/", target="_blank",
+            img(src="Logo_CMYK_Massachusetts_Massachusetts.png", height="50px", 
+                style="display: inline; margin: 10px;")),
+          a(href="https://www.data.aclum.org/",  target="_blank",
+            img(src="D4J-logo.png", height="50px", 
+                style="display: inline; margin: 10px;"))),
+      p("Please contact lchambers@aclum.org with questions.", align="center", style="opacity: 0.6;")
   )
 )
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Server
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Helper Functions ------------------------------------------------------------
 
-# Helper functions
-
-# Do math do figure out percent of non-internet/comp people
+# Do math to figure out percentage of estimate variables
 get_percents <- function(df, save=F) {
   
+  # Get the input data frame's name as a string
   original_df_name <- deparse(substitute(df))
   
+  # Sum together the various "estimate" values and calculate percent of the whole
   df <- df %>%
     group_by(GEOID) %>%
     mutate(sum_value = sum(estimate),
@@ -111,11 +114,11 @@ get_percents <- function(df, save=F) {
            percent = sum_value / summary_est * 100) %>%
     select(-estimate, -moe, -variable) %>%
     unique() %>%
-    # there are some tracts with no land that we should exclude
+    # Exclude census tracts with no land
     filter(ALAND > 0)
   
+  # If desired, save resulting dataframe & spatial data to file
   if (save) {
-    # Save as shapefile
     writeOGR(obj=df, dsn=paste0("data/", original_df_name), 
              layer=original_df_name, driver="ESRI Shapefile")
   }
@@ -123,33 +126,35 @@ get_percents <- function(df, save=F) {
   return(df)
 }
 
+# Replace legend labels with custom format
 myLabelFormat = function(..., custom_percent=F, income=F){ 
+  # Add "≥" in front of last legend percentage to denote lower limit
   if(custom_percent){ 
     function(type = "numeric", cuts){ 
       cuts <- paste0(cuts, "%")
       cuts[[length(cuts)]] <- paste0("≥", cuts[[length(cuts)]])
       cuts
     } 
+    
+    # Add "≥" in front of last legend value to denote lower limit & add 
+    # commas for legibility in big numbers
   } else if(income){ 
     function(type = "numeric", cuts){ 
       cuts <- paste0("$",format(cuts ,big.mark=",",scientific=FALSE))
       cuts[[length(cuts)]] <- paste0("≥", cuts[[length(cuts)]])
       cuts
     } 
+    
+    # Use default label formatter  
   } else{
     labelFormat(...)
   }
 }
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Load Data
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
+# Server ----------------------------------------------------------------------
 server <- function(input, output, session) {
   
-  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  # Internet & Computer
-  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  # Internet & Computer Access ------------------------------------------------
   
   # Show partial range (numeric)
   pal_intcomp <- colorNumeric(
@@ -162,7 +167,7 @@ server <- function(input, output, session) {
   output$intcomp_map <- renderLeaflet({
     
     output$tab_num <- renderText({"B28008"})
-
+    
     leaflet() %>%
       addProviderTiles(providers$Esri.WorldGrayCanvas) %>%
       addPolygons(data = intcomp_spdf,
@@ -171,7 +176,8 @@ server <- function(input, output, session) {
                   fillOpacity = 0.8, 
                   weight = 1, 
                   smoothFactor = 0.7,
-                  label = ~lapply(paste0(NAME_y, " </br>", round(percent, 2), "% without computer or internet"), 
+                  label = ~lapply(paste0(NAME_y, " </br>", round(percent, 2), 
+                                         "% without computer or internet"), 
                                   htmltools::HTML),
                   group="circle_marks") %>%
       addLegend(pal = pal_intcomp, 
@@ -190,12 +196,10 @@ server <- function(input, output, session) {
                }"))) %>%
       addControl("<img src='Logo_White_CMYK_Massachusetts.png'>", 
                  "bottomright", className="logo-control")
-
+    
   })
   
-  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  # Broadband
-  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  # Broadband Internet Access ------------------------------------------------
   
   # Show partial range (numeric)
   pal_broadband <- colorNumeric(
@@ -239,9 +243,7 @@ server <- function(input, output, session) {
     
   })
   
-  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  # Income
-  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  # Income --------------------------------------------------------------------
   
   # Show partial range (numeric)
   pal_income <- colorNumeric(
@@ -264,7 +266,8 @@ server <- function(input, output, session) {
                   fillOpacity = 0.8, 
                   weight = 1, 
                   smoothFactor = 0.7,
-                  label = ~lapply(paste0(NAME_y, " </br>Mean Income: $", format(percent, big.mark=",")), 
+                  label = ~lapply(paste0(NAME_y, " </br>Mean Income: $", 
+                                         format(percent, big.mark=",")), 
                                   htmltools::HTML),
                   group="circle_marks") %>%
       addLegend(pal = pal_income, 
@@ -286,9 +289,7 @@ server <- function(input, output, session) {
     
   })
   
-  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-  # Language
-  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+  # Language Spoken at Home ---------------------------------------------------
   
   # Show partial range (numeric)
   pal_lang <- colorNumeric(
