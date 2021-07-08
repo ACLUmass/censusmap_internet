@@ -94,7 +94,7 @@ ui <- fluidPage(theme = "covid19_internet.css",
           a(href="https://www.data.aclum.org/",  target="_blank",
             img(src="D4J-logo.png", height="50px", 
                 style="display: inline; margin: 10px;"))),
-      p("Please contact lchambers@aclum.org with questions.", align="center", style="opacity: 0.6;")
+      p("Please contact data4justice@aclum.org with questions.", align="center", style="opacity: 0.6;")
   )
 )
 
